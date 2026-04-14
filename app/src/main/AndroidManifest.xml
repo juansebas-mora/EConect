@@ -5,6 +5,10 @@
     <!-- Requerido en Android 13+ para mostrar notificaciones -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Ubicación precisa para mostrar mapa y centros de acopio cercanos -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:name=".EConectApp"
         android:allowBackup="true"
@@ -15,6 +19,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.EConect">
+
+        <!-- Google Maps API Key -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyBP7fvHMTEyOkzYofNN6_UOZipOy1bmSn8" />
 
         <activity
             android:name=".MainActivity"

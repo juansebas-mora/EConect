@@ -2,6 +2,7 @@ package com.econect.app.presentation.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.econect.app.data.local.datastore.UserDataStore
 import com.econect.app.domain.model.AuthError
 import com.econect.app.domain.model.Result
 import com.econect.app.domain.model.UserType
@@ -36,7 +37,8 @@ class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
     private val registerUseCase: RegisterUseCase,
     private val logoutUseCase: LogoutUseCase,
-    private val getCurrentUserUseCase: GetCurrentUserUseCase
+    private val getCurrentUserUseCase: GetCurrentUserUseCase,
+    private val userDataStore: UserDataStore
 ) : ViewModel() {
 
     private val _loginState = MutableStateFlow(LoginUiState())
@@ -49,8 +51,11 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _loginState.update { it.copy(isLoading = true, error = null) }
             when (val result = loginUseCase(email, password)) {
-                is Result.Success -> _loginState.update {
-                    it.copy(isLoading = false, success = true, userType = result.data.userType)
+                is Result.Success -> {
+                    userDataStore.saveActiveUser(result.data.id, result.data.userType)
+                    _loginState.update {
+                        it.copy(isLoading = false, success = true, userType = result.data.userType)
+                    }
                 }
                 is Result.Error -> _loginState.update {
                     it.copy(isLoading = false, error = mapError(result.exception))
@@ -70,14 +75,24 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _registerState.update { it.copy(isLoading = true, error = null) }
             when (val result = registerUseCase(email, password, name, phone, userType)) {
-                is Result.Success -> _registerState.update {
-                    it.copy(isLoading = false, success = true, userType = result.data.userType)
+                is Result.Success -> {
+                    userDataStore.saveActiveUser(result.data.id, result.data.userType)
+                    _registerState.update {
+                        it.copy(isLoading = false, success = true, userType = result.data.userType)
+                    }
                 }
                 is Result.Error -> _registerState.update {
                     it.copy(isLoading = false, error = mapError(result.exception))
                 }
                 Result.Loading -> Unit
             }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            logoutUseCase()
+            userDataStore.clearActiveUser()
         }
     }
 
