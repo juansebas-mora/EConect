@@ -13,3 +13,12 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Firebase configuration
+# El archivo app/google-services.json incluido es un placeholder.
+# Para conectar con tu proyecto Firebase:
+#   1. Ve a Firebase Console > Configuración del proyecto
+#   2. Descarga google-services.json para la app Android (com.econect.app)
+#   3. Reemplaza app/google-services.json con el archivo descargado
+# NO commitear el archivo real con credenciales de producción.
+# app/google-services.json

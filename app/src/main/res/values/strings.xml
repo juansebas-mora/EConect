@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">EConect</string>
+    <string name="fcm_channel_id">econect_notifications</string>
+    <string name="fcm_channel_name">Notificaciones EConect</string>
 </resources>
