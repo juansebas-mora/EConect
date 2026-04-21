@@ -138,7 +138,42 @@ class MaterialRepositoryImpl @Inject constructor(
             ),
             createdAt = (data["createdAt"] as? Number)?.toLong() ?: 0L
         )
+    override suspend fun getAvailableMaterials(): Result<List<RecyclableMaterial>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val snapshot = firestore.collection(COLLECTION)
+                    .whereEqualTo("status", MaterialStatus.AVAILABLE.name)
+                    .get()
+                    .await()
+                snapshot.documents.mapNotNull { doc ->
+                    val data = doc.data ?: return@mapNotNull null
+                    mapDocumentToMaterial(doc.id, data)
+                }
+            }.fold(
+                onSuccess = { Result.Success(it) },
+                onFailure = { Result.Error(it) }
+            )
+        }
 
+    override suspend fun assignMaterial(materialId: String, recyclerId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                firestore.collection(COLLECTION)
+                    .document(materialId)
+                    .update(
+                        mapOf(
+                            "status" to MaterialStatus.ASSIGNED.name,
+                            "recyclerId" to recyclerId
+                        )
+                    )
+                    .await()
+                val entity = dao.getById(materialId)
+                if (entity != null) dao.insert(entity.copy(status = MaterialStatus.ASSIGNED.name))
+            }.fold(
+                onSuccess = { Result.Success(Unit) },
+                onFailure = { Result.Error(it) }
+            )
+        }
     companion object {
         private const val COLLECTION = "materials"
     }

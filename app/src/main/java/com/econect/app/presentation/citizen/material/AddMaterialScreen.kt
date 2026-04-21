@@ -84,7 +84,16 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
-
+import androidx.compose.ui.platform.LocalContext
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.maps.android.compose.MapProperties
+import com.econect.app.util.checkLocationPermission
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 // --- Pantalla principal ---
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -572,6 +581,7 @@ private fun MapPickerDialog(
     onConfirm: (LatLng) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var pickedGms by remember {
         mutableStateOf(
             initialLocation?.let { GmsLatLng(it.latitude, it.longitude) }
@@ -582,6 +592,47 @@ private fun MapPickerDialog(
         position = initialLocation
             ?.let { CameraPosition.fromLatLngZoom(GmsLatLng(it.latitude, it.longitude), 15f) }
             ?: DEFAULT_CAMERA
+    }
+
+    // Pedir permiso de ubicación automáticamente
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+            val cancellationToken = CancellationTokenSource()
+            fusedClient.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY,
+                cancellationToken.token
+            ).addOnSuccessListener { location ->
+                location?.let {
+                    cameraPositionState.move(
+                        CameraUpdateFactory.newLatLngZoom(
+                            GmsLatLng(it.latitude, it.longitude), 15f
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (checkLocationPermission(context)) {
+            // Ya tiene permiso, centrar en ubicación actual
+            val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+            fusedClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    cameraPositionState.move(
+                        CameraUpdateFactory.newLatLngZoom(
+                            GmsLatLng(it.latitude, it.longitude), 15f
+                        )
+                    )
+                }
+            }
+        } else {
+            // No tiene permiso, pedirlo
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
     }
 
     Dialog(
@@ -596,7 +647,10 @@ private fun MapPickerDialog(
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
-                    onMapClick = { gmsLatLng -> pickedGms = gmsLatLng }
+                    onMapClick = { gmsLatLng -> pickedGms = gmsLatLng },
+                    properties = MapProperties(
+                        isMyLocationEnabled = checkLocationPermission(context)
+                    )
                 ) {
                     pickedGms?.let { gms ->
                         Marker(
@@ -606,7 +660,6 @@ private fun MapPickerDialog(
                     }
                 }
 
-                // Barra inferior con instrucción y botones
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -620,11 +673,10 @@ private fun MapPickerDialog(
                     ) {
                         Text(
                             text = if (pickedGms == null) "Toca el mapa para marcar el punto de recogida"
-                                   else "Punto seleccionado: %.5f, %.5f".format(
-                                       pickedGms!!.latitude, pickedGms!!.longitude
-                                   ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            else "Punto seleccionado: %.5f, %.5f".format(
+                                pickedGms!!.latitude, pickedGms!!.longitude
+                            ),
+                            style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(Modifier.height(12.dp))
                         Row(
@@ -634,9 +686,7 @@ private fun MapPickerDialog(
                             OutlinedButton(
                                 onClick = onDismiss,
                                 modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Cancelar")
-                            }
+                            ) { Text("Cancelar") }
                             Button(
                                 onClick = {
                                     pickedGms?.let { gms ->
@@ -645,9 +695,7 @@ private fun MapPickerDialog(
                                 },
                                 enabled = pickedGms != null,
                                 modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Confirmar")
-                            }
+                            ) { Text("Confirmar") }
                         }
                     }
                 }

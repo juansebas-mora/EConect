@@ -70,14 +70,17 @@ import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material.icons.filled.Eco
 
 // --- Pantalla principal ---
 
 @Composable
 fun RecyclerDashboardScreen(
     onNavigateToRouteDetail: (routeId: String) -> Unit,
+    onNavigateToAvailableMaterials: () -> Unit,
     viewModel: RecyclerDashboardViewModel = hiltViewModel()
-) {
+){
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -88,7 +91,14 @@ fun RecyclerDashboardScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onNavigateToAvailableMaterials,
+                icon = { Icon(Icons.Filled.Eco, contentDescription = null) },
+                text = { Text("Ver materiales") }
+            )
+        }
     ) { paddingValues ->
         if (uiState.isLoading) {
             Box(
@@ -101,7 +111,6 @@ fun RecyclerDashboardScreen(
             }
             return@Scaffold
         }
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

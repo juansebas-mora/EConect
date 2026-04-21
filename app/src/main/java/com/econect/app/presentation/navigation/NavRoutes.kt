@@ -18,4 +18,6 @@ object NavRoutes {
     const val RECYCLER_PROFILE = "recycler_profile"
     const val ROUTE_DETAIL = "route_detail/{routeId}"
     fun routeDetail(routeId: String) = "route_detail/$routeId"
+
+    const val AVAILABLE_MATERIALS = "available_materials"
 }

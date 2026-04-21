@@ -18,6 +18,7 @@ import com.econect.app.presentation.recycler.dashboard.RecyclerDashboardScreen
 import com.econect.app.presentation.citizen.material.MaterialListScreen
 import com.econect.app.presentation.citizen.profile.CitizenProfileScreen
 import com.econect.app.presentation.recycler.profile.RecyclerProfileScreen
+import com.econect.app.presentation.recycler.materials.AvailableMaterialsScreen
 
 @Composable
 fun AppNavGraph(navController: NavHostController) {
@@ -42,7 +43,9 @@ fun AppNavGraph(navController: NavHostController) {
                 }
             )
         }
-
+        composable(NavRoutes.AVAILABLE_MATERIALS) {
+            AvailableMaterialsScreen()
+        }
         composable(NavRoutes.REGISTER) {
             RegisterScreen(
                 onNavigateToLogin = {
@@ -87,6 +90,16 @@ fun AppNavGraph(navController: NavHostController) {
             )
         }
 
+        composable(NavRoutes.RECYCLER_HOME) {
+            RecyclerDashboardScreen(
+                onNavigateToRouteDetail = { routeId ->
+                    navController.navigate(NavRoutes.routeDetail(routeId))
+                },
+                onNavigateToAvailableMaterials = {
+                    navController.navigate(NavRoutes.AVAILABLE_MATERIALS)
+                }
+            )
+        }
         composable(NavRoutes.MATERIAL_LIST) {
             MaterialListScreen()
         }
@@ -97,13 +110,7 @@ fun AppNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(NavRoutes.RECYCLER_HOME) {
-            RecyclerDashboardScreen(
-                onNavigateToRouteDetail = { routeId ->
-                    navController.navigate(NavRoutes.routeDetail(routeId))
-                }
-            )
-        }
+
 
         // Placeholder: se reemplazará con RouteDetailScreen cuando esté disponible
         composable(NavRoutes.ROUTE_DETAIL) {
