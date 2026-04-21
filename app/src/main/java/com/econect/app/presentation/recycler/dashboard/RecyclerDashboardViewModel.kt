@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.econect.app.data.local.datastore.UserDataStore
 import com.econect.app.domain.model.MaterialUnit
+import com.econect.app.domain.model.RecyclableMaterial
 import com.econect.app.domain.model.Result
 import com.econect.app.domain.model.Route
 import com.econect.app.domain.model.RouteStatus
 import com.econect.app.domain.model.Transaction
+import com.econect.app.domain.repository.MaterialRepository
 import com.econect.app.domain.repository.RouteRepository
 import com.econect.app.domain.repository.TransactionRepository
 import com.econect.app.domain.usecase.GetRecyclerRoutesUseCase
@@ -22,7 +24,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 import java.util.Calendar
 import javax.inject.Inject
 
@@ -31,10 +32,10 @@ data class RecyclerDashboardUiState(
     val isSyncing: Boolean = false,
     val error: String? = null,
     val recyclerName: String = "",
-    val pendingRoutesToday: Int = 0,
+    val pendingMaterials: Int = 0,
     val kgCollectedThisMonth: Double = 0.0,
     val earningsThisMonth: Double = 0.0,
-    val upcomingRoutes: List<Route> = emptyList(),
+    val assignedMaterials: List<RecyclableMaterial> = emptyList(),
     val recentPickups: List<Transaction> = emptyList()
 )
 
@@ -45,15 +46,14 @@ class RecyclerDashboardViewModel @Inject constructor(
     private val getRecyclerRoutesUseCase: GetRecyclerRoutesUseCase,
     private val getRecyclerTransactionsUseCase: GetRecyclerTransactionsUseCase,
     private val routeRepository: RouteRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val materialRepository: MaterialRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RecyclerDashboardUiState())
     val uiState: StateFlow<RecyclerDashboardUiState> = _uiState.asStateFlow()
 
-    init {
-        loadDashboard()
-    }
+    init { loadDashboard() }
 
     private fun loadDashboard() {
         viewModelScope.launch {
@@ -70,31 +70,54 @@ class RecyclerDashboardViewModel @Inject constructor(
                 }
             }
 
-            // Combinar rutas + transacciones para calcular métricas del dashboard
+            // Cargar materiales asignados al reciclador
             launch {
-                combine(
-                    getRecyclerRoutesUseCase(uid),
-                    getRecyclerTransactionsUseCase(uid)
-                ) { routes, transactions ->
-                    buildDashboardMetrics(routes, transactions)
-                }.collect { metrics ->
+                when (val result = materialRepository.getAssignedMaterials(uid)) {
+                    is Result.Success -> {
+                        val materials = result.data as List<RecyclableMaterial>
+                        _uiState.update { state ->
+                            state.copy(
+                                isLoading = false,
+                                assignedMaterials = materials,
+                                pendingMaterials = materials.size
+                            )
+                        }
+                    }
+                    is Result.Error -> _uiState.update {
+                        it.copy(isLoading = false)
+                    }
+                    Result.Loading -> Unit
+                }
+            }
+
+            // Cargar transacciones recientes
+            launch {
+                getRecyclerTransactionsUseCase(uid).collect { transactions ->
+                    val cal = Calendar.getInstance()
+                    val month = cal.get(Calendar.MONTH)
+                    val year = cal.get(Calendar.YEAR)
+
+                    val kgThisMonth = transactions
+                        .filter { it.confirmedQuantity.unit == MaterialUnit.KG && it.completedAt.isInMonth(month, year) }
+                        .sumOf { it.confirmedQuantity.value }
+
+                    val earningsThisMonth = transactions
+                        .filter { it.completedAt.isInMonth(month, year) }
+                        .sumOf { it.totalAmount }
+
                     _uiState.update { state ->
                         state.copy(
-                            isLoading = false,
-                            pendingRoutesToday = metrics.pendingToday,
-                            kgCollectedThisMonth = metrics.kgThisMonth,
-                            earningsThisMonth = metrics.earningsThisMonth,
-                            upcomingRoutes = metrics.upcomingRoutes,
-                            recentPickups = metrics.recentPickups
+                            kgCollectedThisMonth = kgThisMonth,
+                            earningsThisMonth = earningsThisMonth,
+                            recentPickups = transactions.sortedByDescending { it.completedAt }.take(3)
                         )
                     }
                 }
             }
 
-            // Sincronizar ambas fuentes en paralelo
+            // Sincronizar
             _uiState.update { it.copy(isSyncing = true) }
             coroutineScope {
-                launch { routeRepository.syncRecyclerRoutes(uid) }
                 launch { transactionRepository.syncRecyclerTransactions(uid) }
             }
             _uiState.update { it.copy(isSyncing = false) }
@@ -103,60 +126,9 @@ class RecyclerDashboardViewModel @Inject constructor(
 
     fun clearError() = _uiState.update { it.copy(error = null) }
 
-    private fun buildDashboardMetrics(
-        routes: List<Route>,
-        transactions: List<Transaction>
-    ): DashboardMetrics {
-        val today = LocalDate.now().toString()
-        val cal = Calendar.getInstance()
-        val month = cal.get(Calendar.MONTH)
-        val year = cal.get(Calendar.YEAR)
-
-        val pendingToday = routes.count { r ->
-            r.date == today && r.status != RouteStatus.COMPLETED
-        }
-
-        val kgThisMonth = transactions
-            .filter { t ->
-                t.confirmedQuantity.unit == MaterialUnit.KG && t.completedAt.isInMonth(month, year)
-            }
-            .sumOf { it.confirmedQuantity.value }
-
-        val earningsThisMonth = transactions
-            .filter { t -> t.completedAt.isInMonth(month, year) }
-            .sumOf { it.totalAmount }
-
-        val upcoming = routes
-            .filter { it.status != RouteStatus.COMPLETED }
-            .sortedWith(compareBy(
-                { it.date },
-                { it.stops.minOfOrNull { s -> s.scheduledTime } ?: "" }
-            ))
-
-        val recentPickups = transactions
-            .sortedByDescending { it.completedAt }
-            .take(3)
-
-        return DashboardMetrics(
-            pendingToday = pendingToday,
-            kgThisMonth = kgThisMonth,
-            earningsThisMonth = earningsThisMonth,
-            upcomingRoutes = upcoming,
-            recentPickups = recentPickups
-        )
-    }
-
     private fun Long.isInMonth(month: Int, year: Int): Boolean {
         if (this == 0L) return false
         val cal = Calendar.getInstance().apply { timeInMillis = this@isInMonth }
         return cal.get(Calendar.MONTH) == month && cal.get(Calendar.YEAR) == year
     }
-
-    private data class DashboardMetrics(
-        val pendingToday: Int,
-        val kgThisMonth: Double,
-        val earningsThisMonth: Double,
-        val upcomingRoutes: List<Route>,
-        val recentPickups: List<Transaction>
-    )
 }

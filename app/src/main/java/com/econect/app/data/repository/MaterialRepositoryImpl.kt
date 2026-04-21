@@ -138,6 +138,7 @@ class MaterialRepositoryImpl @Inject constructor(
             ),
             createdAt = (data["createdAt"] as? Number)?.toLong() ?: 0L
         )
+
     override suspend fun getAvailableMaterials(): Result<List<RecyclableMaterial>> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -174,6 +175,25 @@ class MaterialRepositoryImpl @Inject constructor(
                 onFailure = { Result.Error(it) }
             )
         }
+
+    override suspend fun getAssignedMaterials(recyclerId: String): Result<List<RecyclableMaterial>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val snapshot = firestore.collection(COLLECTION)
+                    .whereEqualTo("recyclerId", recyclerId)
+                    .whereEqualTo("status", MaterialStatus.ASSIGNED.name)
+                    .get()
+                    .await()
+                snapshot.documents.mapNotNull { doc ->
+                    val data = doc.data ?: return@mapNotNull null
+                    mapDocumentToMaterial(doc.id, data)
+                }
+            }.fold(
+                onSuccess = { Result.Success(it) },
+                onFailure = { Result.Error(it) }
+            )
+        }
+
     companion object {
         private const val COLLECTION = "materials"
     }

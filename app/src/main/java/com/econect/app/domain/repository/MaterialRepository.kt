@@ -31,4 +31,5 @@ interface MaterialRepository {
 
     suspend fun assignMaterial(materialId: String, recyclerId: String): Result<Unit>
 
+    suspend fun getAssignedMaterials(recyclerId: String): Result<List<RecyclableMaterial>>
 }
