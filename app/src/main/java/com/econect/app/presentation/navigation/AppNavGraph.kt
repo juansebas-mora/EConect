@@ -97,6 +97,11 @@ fun AppNavGraph(navController: NavHostController) {
                 },
                 onNavigateToAvailableMaterials = {
                     navController.navigate(NavRoutes.AVAILABLE_MATERIALS)
+                },
+                onLogout = {  // ← NUEVO
+                    navController.navigate(NavRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
@@ -121,5 +126,7 @@ fun AppNavGraph(navController: NavHostController) {
                 modifier = Modifier.padding(16.dp)
             )
         }
+
+
     }
 }

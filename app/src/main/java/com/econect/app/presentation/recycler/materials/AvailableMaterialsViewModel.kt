@@ -20,7 +20,8 @@ data class AvailableMaterialsUiState(
     val materials: List<RecyclableMaterial> = emptyList(),
     val acceptingId: String? = null,
     val error: String? = null,
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    val materialToShowOnMap: RecyclableMaterial? = null
 )
 
 @HiltViewModel
@@ -70,7 +71,13 @@ class AvailableMaterialsViewModel @Inject constructor(
             }
         }
     }
+    fun showOnMap(material: RecyclableMaterial) {
+        _uiState.update { it.copy(materialToShowOnMap = material) }
+    }
 
+    fun dismissMap() {
+        _uiState.update { it.copy(materialToShowOnMap = null) }
+    }
     fun clearError() = _uiState.update { it.copy(error = null) }
     fun clearSuccess() = _uiState.update { it.copy(successMessage = null) }
 }

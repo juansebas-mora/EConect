@@ -1,5 +1,7 @@
 package com.econect.app.presentation.recycler.materials
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -20,12 +23,15 @@ import com.econect.app.domain.model.MaterialType
 import com.econect.app.domain.model.MaterialUnit
 import com.econect.app.domain.model.RecyclableMaterial
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AvailableMaterialsScreen(
     viewModel: AvailableMaterialsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState()
 
     LaunchedEffect(uiState.error) {
         val msg = uiState.error ?: return@LaunchedEffect
@@ -100,10 +106,88 @@ fun AvailableMaterialsScreen(
                         MaterialCard(
                             material = material,
                             isAccepting = uiState.acceptingId == material.id,
-                            onAccept = { viewModel.acceptMaterial(material.id) }
+                            onShowMap = { viewModel.showOnMap(material) }
                         )
                     }
                 }
+            }
+        }
+    }
+
+    // BottomSheet del mapa — fuera del Scaffold
+    uiState.materialToShowOnMap?.let { material ->
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.dismissMap() },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Punto de recogida",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = material.type.label(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                HorizontalDivider()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "%.6f, %.6f".format(
+                            material.pickupLocation.latitude,
+                            material.pickupLocation.longitude
+                        ),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val lat = material.pickupLocation.latitude
+                        val lng = material.pickupLocation.longitude
+                        val label = "Recogida: ${material.type.label()}"
+                        val uri = Uri.parse("geo:$lat,$lng?q=$lat,$lng($label)")
+                        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                            setPackage("com.google.android.apps.maps")
+                        }
+                        if (intent.resolveActivity(context.packageManager) != null) {
+                            context.startActivity(intent)
+                        } else {
+                            val fallbackUri = Uri.parse("https://maps.google.com/?q=$lat,$lng")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, fallbackUri))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Map, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Abrir en Google Maps")
+                }
+                OutlinedButton(
+                    onClick = {
+                        viewModel.dismissMap()
+                        viewModel.acceptMaterial(material.id)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Confirmar recogida")
+                }
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
@@ -113,7 +197,7 @@ fun AvailableMaterialsScreen(
 private fun MaterialCard(
     material: RecyclableMaterial,
     isAccepting: Boolean,
-    onAccept: () -> Unit
+    onShowMap: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -164,7 +248,7 @@ private fun MaterialCard(
             Spacer(Modifier.height(12.dp))
 
             Button(
-                onClick = onAccept,
+                onClick = onShowMap,
                 enabled = !isAccepting,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -175,9 +259,9 @@ private fun MaterialCard(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null)
+                    Icon(Icons.Filled.Map, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Aceptar recogida")
+                    Text("Ver ubicación y asignar")
                 }
             }
         }

@@ -26,6 +26,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
+import com.econect.app.domain.usecase.LogoutUseCase
+import kotlin.math.asin
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
+import com.econect.app.domain.repository.LocationRepository
 
 data class RecyclerDashboardUiState(
     val isLoading: Boolean = true,
@@ -36,7 +43,8 @@ data class RecyclerDashboardUiState(
     val kgCollectedThisMonth: Double = 0.0,
     val earningsThisMonth: Double = 0.0,
     val assignedMaterials: List<RecyclableMaterial> = emptyList(),
-    val recentPickups: List<Transaction> = emptyList()
+    val recentPickups: List<Transaction> = emptyList(),
+    val distancesKm: Map<String, Double> = emptyMap()
 )
 
 @HiltViewModel
@@ -47,7 +55,9 @@ class RecyclerDashboardViewModel @Inject constructor(
     private val getRecyclerTransactionsUseCase: GetRecyclerTransactionsUseCase,
     private val routeRepository: RouteRepository,
     private val transactionRepository: TransactionRepository,
-    private val materialRepository: MaterialRepository
+    private val materialRepository: MaterialRepository,
+    private val logoutUseCase: LogoutUseCase ,
+    private val locationRepository: LocationRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RecyclerDashboardUiState())
@@ -125,6 +135,46 @@ class RecyclerDashboardViewModel @Inject constructor(
     }
 
     fun clearError() = _uiState.update { it.copy(error = null) }
+    fun loadDistances() {
+        viewModelScope.launch {
+            val materials = _uiState.value.assignedMaterials
+            if (materials.isEmpty()) return@launch
+
+            when (val locationResult = locationRepository.getCurrentLocation()) {
+                is Result.Success -> {
+                    val myLocation = locationResult.data
+                    val distances = materials.associate { material ->
+                        val dist = haversineKm(
+                            myLocation.latitude, myLocation.longitude,
+                            material.pickupLocation.latitude, material.pickupLocation.longitude
+                        )
+                        material.id to dist
+                    }
+                    _uiState.update { it.copy(distancesKm = distances) }
+                }
+                else -> Unit // Falla silenciosa, el botón simplemente no muestra distancia
+            }
+        }
+    }
+
+    private fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val R = 6371.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat/2).pow(2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon/2).pow(2)
+        return R * 2 * Math.asin(Math.sqrt(a))
+    }
+
+    fun logout(onDone: () -> Unit) {  // ← NUEVO
+        viewModelScope.launch {
+            logoutUseCase()
+            onDone()
+        }
+    }
+
+
 
     private fun Long.isInMonth(month: Int, year: Int): Boolean {
         if (this == 0L) return false

@@ -23,15 +23,32 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.material.icons.filled.Logout
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @Composable
 fun RecyclerDashboardScreen(
-    onNavigateToRouteDetail: (routeId: String) -> Unit,
+    onNavigateToRouteDetail: (String) -> Unit,
     onNavigateToAvailableMaterials: () -> Unit,
+    onLogout: () -> Unit,  // ← NUEVO
     viewModel: RecyclerDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var locationPermissionGranted by rememberSaveable { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        locationPermissionGranted = isGranted
+        if (isGranted) {
+            viewModel.loadDistances()  // Si acepta, carga distancias inmediatamente
+        }
+    }
 
     LaunchedEffect(uiState.error) {
         val msg = uiState.error ?: return@LaunchedEffect
@@ -66,7 +83,8 @@ fun RecyclerDashboardScreen(
             item {
                 DashboardHeader(
                     recyclerName = uiState.recyclerName,
-                    isSyncing = uiState.isSyncing
+                    isSyncing = uiState.isSyncing,
+                    onLogout = { viewModel.logout(onLogout) }
                 )
             }
 
@@ -99,6 +117,14 @@ fun RecyclerDashboardScreen(
                 items(uiState.assignedMaterials, key = { it.id }) { material ->
                     AssignedMaterialCard(
                         material = material,
+                        distanceKm = uiState.distancesKm[material.id],
+                        onCardClick = {
+                            if (locationPermissionGranted) {
+                                viewModel.loadDistances()
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            }
+                        },
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
@@ -127,6 +153,7 @@ fun RecyclerDashboardScreen(
 private fun DashboardHeader(
     recyclerName: String,
     isSyncing: Boolean,
+    onLogout: () -> Unit,                                    // ← NUEVO
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -135,19 +162,34 @@ private fun DashboardHeader(
             color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
-                Text(
-                    text = "Hola, $recyclerName",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Resumen de tu actividad",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+            Row(                                             // ← Cambia Column por Row
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Hola, $recyclerName",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Resumen de tu actividad",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                IconButton(onClick = onLogout) {             // ← Botón logout
+                    Icon(
+                        imageVector = Icons.Filled.Logout,
+                        contentDescription = "Cerrar sesión",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
         }
     }
@@ -225,10 +267,13 @@ private fun SectionTitle(title: String, modifier: Modifier = Modifier) {
 @Composable
 private fun AssignedMaterialCard(
     material: RecyclableMaterial,
+    distanceKm: Double?,        // ← NUEVO
+    onCardClick: () -> Unit,    // ← NUEVO
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        onClick = onCardClick,  // ← NUEVO: hace clickeable la card
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -262,14 +307,29 @@ private fun AssignedMaterialCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
-                    Text(
-                        text = "📍 %.4f, %.4f".format(
-                            material.pickupLocation.latitude,
-                            material.pickupLocation.longitude
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    // ← NUEVO: muestra la distancia si está disponible
+                    if (distanceKm != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = if (distanceKm < 1.0) {
+                                    "%.0f m".format(distanceKm * 1000)
+                                } else {
+                                    "%.1f km".format(distanceKm)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
             SuggestionChip(
