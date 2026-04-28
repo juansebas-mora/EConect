@@ -1,5 +1,7 @@
 package com.econect.app.presentation.recycler.dashboard
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -23,32 +26,22 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.material.icons.filled.Logout
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecyclerDashboardScreen(
-    onNavigateToRouteDetail: (String) -> Unit,
+    onNavigateToRouteDetail: (routeId: String) -> Unit,
     onNavigateToAvailableMaterials: () -> Unit,
-    onLogout: () -> Unit,  // ← NUEVO
+    onLogout: () -> Unit,
     viewModel: RecyclerDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var locationPermissionGranted by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState()
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        locationPermissionGranted = isGranted
-        if (isGranted) {
-            viewModel.loadDistances()  // Si acepta, carga distancias inmediatamente
-        }
-    }
+    // Material seleccionado para mostrar en el mapa
+    var selectedMaterial by remember { mutableStateOf<RecyclableMaterial?>(null) }
 
     LaunchedEffect(uiState.error) {
         val msg = uiState.error ?: return@LaunchedEffect
@@ -118,13 +111,7 @@ fun RecyclerDashboardScreen(
                     AssignedMaterialCard(
                         material = material,
                         distanceKm = uiState.distancesKm[material.id],
-                        onCardClick = {
-                            if (locationPermissionGranted) {
-                                viewModel.loadDistances()
-                            } else {
-                                permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                            }
-                        },
+                        onCardClick = { selectedMaterial = material },
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
@@ -147,13 +134,80 @@ fun RecyclerDashboardScreen(
             }
         }
     }
+
+    // BottomSheet del mapa — fuera del Scaffold
+    selectedMaterial?.let { material ->
+        ModalBottomSheet(
+            onDismissRequest = { selectedMaterial = null },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Punto de recogida",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = material.type.label(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                HorizontalDivider()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "%.6f, %.6f".format(
+                            material.pickupLocation.latitude,
+                            material.pickupLocation.longitude
+                        ),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val lat = material.pickupLocation.latitude
+                        val lng = material.pickupLocation.longitude
+                        val label = "Recogida: ${material.type.label()}"
+                        val uri = Uri.parse("geo:$lat,$lng?q=$lat,$lng($label)")
+                        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                            setPackage("com.google.android.apps.maps")
+                        }
+                        if (intent.resolveActivity(context.packageManager) != null) {
+                            context.startActivity(intent)
+                        } else {
+                            val fallbackUri = Uri.parse("https://maps.google.com/?q=$lat,$lng")
+                            context.startActivity(Intent(Intent.ACTION_VIEW, fallbackUri))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Map, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Abrir en Google Maps")
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+    }
 }
 
 @Composable
 private fun DashboardHeader(
     recyclerName: String,
     isSyncing: Boolean,
-    onLogout: () -> Unit,                                    // ← NUEVO
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -162,7 +216,7 @@ private fun DashboardHeader(
             color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(                                             // ← Cambia Column por Row
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 24.dp),
@@ -183,7 +237,7 @@ private fun DashboardHeader(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-                IconButton(onClick = onLogout) {             // ← Botón logout
+                IconButton(onClick = onLogout) {
                     Icon(
                         imageVector = Icons.Filled.Logout,
                         contentDescription = "Cerrar sesión",
@@ -267,13 +321,13 @@ private fun SectionTitle(title: String, modifier: Modifier = Modifier) {
 @Composable
 private fun AssignedMaterialCard(
     material: RecyclableMaterial,
-    distanceKm: Double?,        // ← NUEVO
-    onCardClick: () -> Unit,    // ← NUEVO
+    distanceKm: Double?,
+    onCardClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
+        onClick = onCardClick,
         modifier = modifier.fillMaxWidth(),
-        onClick = onCardClick,  // ← NUEVO: hace clickeable la card
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -307,9 +361,9 @@ private fun AssignedMaterialCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
-                    // ← NUEVO: muestra la distancia si está disponible
+                    // Distancia si está disponible
                     if (distanceKm != null) {
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Filled.LocationOn,
@@ -333,7 +387,7 @@ private fun AssignedMaterialCard(
                 }
             }
             SuggestionChip(
-                onClick = {},
+                onClick = { onCardClick() },
                 label = { Text("Asignado", style = MaterialTheme.typography.labelSmall) },
                 colors = SuggestionChipDefaults.suggestionChipColors(
                     containerColor = Color(0xFFD4EDDA),
