@@ -74,6 +74,11 @@ fun AppNavGraph(navController: NavHostController) {
                 },
                 onNavigateToChat = { routeId ->
                     // TODO: navegar a ChatScreen(routeId) cuando esté disponible
+                },
+                onLogout = {  // ← NUEVO
+                    navController.navigate(NavRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
@@ -89,6 +94,7 @@ fun AppNavGraph(navController: NavHostController) {
                 onNavigateBack = { navController.popBackStack() }
             )
         }
+
 
         composable(NavRoutes.RECYCLER_HOME) {
             RecyclerDashboardScreen(

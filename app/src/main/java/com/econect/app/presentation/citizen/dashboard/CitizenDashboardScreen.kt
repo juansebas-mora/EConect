@@ -19,13 +19,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Article
-import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.Badge
@@ -33,10 +33,10 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -61,13 +61,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.econect.app.domain.model.MaterialCondition
 import com.econect.app.domain.model.MaterialStatus
 import com.econect.app.domain.model.MaterialType
 import com.econect.app.domain.model.MaterialUnit
 import com.econect.app.domain.model.RecyclableMaterial
 import com.econect.app.domain.model.Schedule
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.util.Calendar
@@ -81,6 +79,7 @@ fun CitizenDashboardScreen(
     onNavigateToAddMaterial: () -> Unit,
     onNavigateToMaterialList: () -> Unit,
     onNavigateToChat: (routeId: String) -> Unit,
+    onLogout: () -> Unit,
     viewModel: CitizenDashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -121,23 +120,16 @@ fun CitizenDashboardScreen(
             contentPadding = PaddingValues(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Solo saludo + botón logout, sin estadísticas
             item {
                 DashboardHeader(
                     userName = uiState.userName,
-                    totalAvailable = uiState.totalAvailable,
-                    isSyncing = uiState.isSyncing
+                    isSyncing = uiState.isSyncing,
+                    onLogout = { viewModel.logout(onLogout) }
                 )
             }
 
-            item {
-                SummaryCardsRow(
-                    totalAvailable = uiState.totalAvailable,
-                    collectedThisMonth = uiState.collectedThisMonth,
-                    estimatedEarnings = uiState.estimatedEarningsThisMonth,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-
+            // Horarios si los hay
             if (uiState.upcomingSchedules.isNotEmpty()) {
                 item {
                     SchedulesSection(
@@ -147,6 +139,7 @@ fun CitizenDashboardScreen(
                 }
             }
 
+            // Banner de chat si hay ruta activa o mensajes
             if (uiState.activeRouteId != null || uiState.unreadMessages > 0) {
                 item {
                     ChatBannerCard(
@@ -157,6 +150,7 @@ fun CitizenDashboardScreen(
                 }
             }
 
+            // Lista de materiales recientes
             if (uiState.recentMaterials.isNotEmpty()) {
                 item {
                     RecentMaterialsHeader(
@@ -182,135 +176,52 @@ fun CitizenDashboardScreen(
     }
 }
 
-// --- Encabezado con saludo ---
+// --- Encabezado simple: solo saludo + logout ---
 
 @Composable
 private fun DashboardHeader(
     userName: String,
-    totalAvailable: Int,
     isSyncing: Boolean,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
         if (isSyncing) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
-
         Surface(
             color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "${timeGreeting()}, $userName",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Spacer(Modifier.height(8.dp))
-                if (totalAvailable > 0) {
-                    val label = if (totalAvailable == 1) "material disponible para recoger"
-                    else "materiales disponibles para recoger"
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Eco,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Tienes $totalAvailable $label",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                } else {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "No tienes materiales registrados aún",
+                        text = "${timeGreeting()}, $userName",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Bienvenido a EConect",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
+                IconButton(onClick = onLogout) {
+                    Icon(
+                        imageVector = Icons.Filled.Logout,
+                        contentDescription = "Cerrar sesión",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
-        }
-    }
-}
-
-// --- Tarjetas de resumen ---
-
-@Composable
-private fun SummaryCardsRow(
-    totalAvailable: Int,
-    collectedThisMonth: Int,
-    estimatedEarnings: Double,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        SummaryCard(
-            icon = Icons.Filled.Eco,
-            value = totalAvailable.toString(),
-            label = "Disponibles",
-            iconTint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f)
-        )
-        SummaryCard(
-            icon = Icons.Filled.CheckCircle,
-            value = collectedThisMonth.toString(),
-            label = "Este mes",
-            iconTint = Color(0xFF2E7D32),
-            modifier = Modifier.weight(1f)
-        )
-        SummaryCard(
-            icon = Icons.Filled.AttachMoney,
-            value = formatCurrency(estimatedEarnings),
-            label = "Ingresos",
-            iconTint = Color(0xFFF57C00),
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun SummaryCard(
-    icon: ImageVector,
-    value: String,
-    label: String,
-    iconTint: Color,
-    modifier: Modifier = Modifier
-) {
-    ElevatedCard(
-        modifier = modifier,
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(24.dp)
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -329,9 +240,7 @@ private fun SchedulesSection(
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.height(8.dp))
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(schedules) { schedule ->
                 ScheduleChip(schedule)
             }
@@ -396,8 +305,7 @@ private fun ChatBannerCard(
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     if (unreadMessages > 0) {
-                        val label = if (unreadMessages == 1) "mensaje sin leer"
-                        else "mensajes sin leer"
+                        val label = if (unreadMessages == 1) "mensaje sin leer" else "mensajes sin leer"
                         Text(
                             text = "$unreadMessages $label",
                             style = MaterialTheme.typography.bodySmall,
@@ -426,7 +334,7 @@ private fun RecentMaterialsHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Materiales recientes",
+            text = "Mis materiales",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -477,9 +385,7 @@ private fun CompactMaterialItem(
             trailingContent = {
                 CompactStatusChip(material.status)
             },
-            colors = ListItemDefaults.colors(
-                containerColor = Color.Transparent
-            )
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
     }
 }
@@ -488,8 +394,8 @@ private fun CompactMaterialItem(
 private fun CompactStatusChip(status: MaterialStatus) {
     val (label, containerColor, contentColor) = when (status) {
         MaterialStatus.AVAILABLE -> Triple("Disponible", Color(0xFFD4EDDA), Color(0xFF155724))
-        MaterialStatus.ASSIGNED -> Triple("Asignado", Color(0xFFFFF3CD), Color(0xFF856404))
-        MaterialStatus.COLLECTED -> Triple("Recogido", Color(0xFFE2E3E5), Color(0xFF383D41))
+        MaterialStatus.ASSIGNED  -> Triple("Asignado",   Color(0xFFFFF3CD), Color(0xFF856404))
+        MaterialStatus.COLLECTED -> Triple("Recogido",   Color(0xFFE2E3E5), Color(0xFF383D41))
     }
     SuggestionChip(
         onClick = {},
@@ -540,43 +446,43 @@ private fun EmptyMaterialsHint(
     }
 }
 
-// --- Extensiones de presentación ---
+// --- Extensiones ---
 
 private fun MaterialType.icon(): ImageVector = when (this) {
-    MaterialType.PAPER -> Icons.Filled.Article
-    MaterialType.PLASTIC -> Icons.Filled.LocalDrink
-    MaterialType.GLASS -> Icons.Filled.WineBar
-    MaterialType.METAL -> Icons.Filled.Build
-    MaterialType.CARDBOARD -> Icons.Filled.Archive
-    MaterialType.ORGANIC -> Icons.Filled.Eco
+    MaterialType.PAPER      -> Icons.Filled.Article
+    MaterialType.PLASTIC    -> Icons.Filled.LocalDrink
+    MaterialType.GLASS      -> Icons.Filled.WineBar
+    MaterialType.METAL      -> Icons.Filled.Build
+    MaterialType.CARDBOARD  -> Icons.Filled.Archive
+    MaterialType.ORGANIC    -> Icons.Filled.Eco
     MaterialType.ELECTRONIC -> Icons.Filled.Memory
-    MaterialType.OTHER -> Icons.Filled.Category
+    MaterialType.OTHER      -> Icons.Filled.Category
 }
 
 private fun MaterialType.label(): String = when (this) {
-    MaterialType.PAPER -> "Papel"
-    MaterialType.PLASTIC -> "Plástico"
-    MaterialType.GLASS -> "Vidrio"
-    MaterialType.METAL -> "Metal"
-    MaterialType.CARDBOARD -> "Cartón"
-    MaterialType.ORGANIC -> "Orgánico"
+    MaterialType.PAPER      -> "Papel"
+    MaterialType.PLASTIC    -> "Plástico"
+    MaterialType.GLASS      -> "Vidrio"
+    MaterialType.METAL      -> "Metal"
+    MaterialType.CARDBOARD  -> "Cartón"
+    MaterialType.ORGANIC    -> "Orgánico"
     MaterialType.ELECTRONIC -> "Electrónico"
-    MaterialType.OTHER -> "Otro"
+    MaterialType.OTHER      -> "Otro"
 }
 
 private fun MaterialUnit.label(): String = when (this) {
-    MaterialUnit.KG -> "kg"
+    MaterialUnit.KG    -> "kg"
     MaterialUnit.UNITS -> "unid."
 }
 
 private fun DayOfWeek.shortLabel(): String = when (this) {
-    DayOfWeek.MONDAY -> "Lun"
-    DayOfWeek.TUESDAY -> "Mar"
+    DayOfWeek.MONDAY    -> "Lun"
+    DayOfWeek.TUESDAY   -> "Mar"
     DayOfWeek.WEDNESDAY -> "Mié"
-    DayOfWeek.THURSDAY -> "Jue"
-    DayOfWeek.FRIDAY -> "Vie"
-    DayOfWeek.SATURDAY -> "Sáb"
-    DayOfWeek.SUNDAY -> "Dom"
+    DayOfWeek.THURSDAY  -> "Jue"
+    DayOfWeek.FRIDAY    -> "Vie"
+    DayOfWeek.SATURDAY  -> "Sáb"
+    DayOfWeek.SUNDAY    -> "Dom"
 }
 
 private val SHORT_DATE_FORMAT = SimpleDateFormat("dd MMM", Locale.getDefault())
@@ -589,13 +495,6 @@ private fun timeGreeting(): String {
     return when {
         hour < 12 -> "Buenos días"
         hour < 19 -> "Buenas tardes"
-        else -> "Buenas noches"
+        else      -> "Buenas noches"
     }
-}
-
-private fun formatCurrency(amount: Double): String {
-    if (amount == 0.0) return "$0"
-    val format = NumberFormat.getCurrencyInstance(Locale("es", "CO"))
-    format.maximumFractionDigits = 0
-    return format.format(amount)
 }
