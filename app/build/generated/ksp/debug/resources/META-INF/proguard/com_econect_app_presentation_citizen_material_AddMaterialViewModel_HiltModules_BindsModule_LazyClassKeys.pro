@@ -1,0 +1,1 @@
+-keep,allowobfuscation,allowshrinking class com.econect.app.presentation.citizen.material.AddMaterialViewModel

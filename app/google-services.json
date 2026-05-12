@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "731095614127",
+    "project_id": "econet-4d2d1",
+    "storage_bucket": "econet-4d2d1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:731095614127:android:bc17299792835ddac70a5a",
+        "android_client_info": {
+          "package_name": "com.econect.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkirZTK3m58LnMoFazUgJ8HgBO8X3xTDA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
