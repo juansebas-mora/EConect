@@ -566,6 +566,7 @@ private fun MaterialType.label(): String = when (this) {
 
 private fun MaterialUnit.label(): String = when (this) {
     MaterialUnit.KG -> "kg"
+    MaterialUnit.GR -> "gr"
     MaterialUnit.UNITS -> "unid."
 }
 

@@ -31,10 +31,10 @@ fun AppNavGraph(navController: NavHostController) {
                     navController.navigate(NavRoutes.REGISTER)
                 },
                 onLoginSuccess = { userType ->
-                    val destination = if (userType == UserType.CITIZEN) {
-                        NavRoutes.CITIZEN_HOME
-                    } else {
-                        NavRoutes.RECYCLER_HOME
+                    val destination = when (userType) {
+                        UserType.CITIZEN -> NavRoutes.CITIZEN_HOME
+                        UserType.RECYCLER -> NavRoutes.RECYCLER_HOME
+                        UserType.RECYCLING_CENTER -> NavRoutes.CENTER_HOME
                     }
                     navController.navigate(destination) {
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }
@@ -49,10 +49,10 @@ fun AppNavGraph(navController: NavHostController) {
                     navController.popBackStack()
                 },
                 onRegisterSuccess = { userType ->
-                    val destination = if (userType == UserType.CITIZEN) {
-                        NavRoutes.CITIZEN_HOME
-                    } else {
-                        NavRoutes.RECYCLER_HOME
+                    val destination = when (userType) {
+                        UserType.CITIZEN -> NavRoutes.CITIZEN_HOME
+                        UserType.RECYCLER -> NavRoutes.RECYCLER_HOME
+                        UserType.RECYCLING_CENTER -> NavRoutes.CENTER_HOME
                     }
                     navController.navigate(destination) {
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }
@@ -110,6 +110,22 @@ fun AppNavGraph(navController: NavHostController) {
             val routeId = it.arguments?.getString("routeId") ?: ""
             Text(
                 text = "Detalle de ruta $routeId — próximamente",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+
+        composable(NavRoutes.CENTER_HOME) {
+            Text(
+                text = "Centro de reciclaje — próximamente",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+
+        composable(NavRoutes.CENTER_PRICE_CONFIG) {
+            Text(
+                text = "Configuración de precios — próximamente",
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(16.dp)
             )
