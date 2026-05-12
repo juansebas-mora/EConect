@@ -32,10 +32,10 @@ fun AppNavGraph(navController: NavHostController) {
                     navController.navigate(NavRoutes.REGISTER)
                 },
                 onLoginSuccess = { userType ->
-                    val destination = if (userType == UserType.CITIZEN) {
-                        NavRoutes.CITIZEN_HOME
-                    } else {
-                        NavRoutes.RECYCLER_HOME
+                    val destination = when (userType) {
+                        UserType.CITIZEN -> NavRoutes.CITIZEN_HOME
+                        UserType.RECYCLER -> NavRoutes.RECYCLER_HOME
+                        UserType.RECYCLING_CENTER -> NavRoutes.CENTER_HOME
                     }
                     navController.navigate(destination) {
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }
@@ -52,10 +52,10 @@ fun AppNavGraph(navController: NavHostController) {
                     navController.popBackStack()
                 },
                 onRegisterSuccess = { userType ->
-                    val destination = if (userType == UserType.CITIZEN) {
-                        NavRoutes.CITIZEN_HOME
-                    } else {
-                        NavRoutes.RECYCLER_HOME
+                    val destination = when (userType) {
+                        UserType.CITIZEN -> NavRoutes.CITIZEN_HOME
+                        UserType.RECYCLER -> NavRoutes.RECYCLER_HOME
+                        UserType.RECYCLING_CENTER -> NavRoutes.CENTER_HOME
                     }
                     navController.navigate(destination) {
                         popUpTo(NavRoutes.LOGIN) { inclusive = true }

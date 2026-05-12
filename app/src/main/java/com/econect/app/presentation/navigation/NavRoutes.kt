@@ -8,6 +8,7 @@ object NavRoutes {
     // Se reemplazarán con nested graphs cuando existan las pantallas.
     const val CITIZEN_HOME = "citizen_home"
     const val RECYCLER_HOME = "recycler_home"
+    const val CENTER_HOME = "center_home"
 
     // Ciudadano
     const val CITIZEN_PROFILE = "citizen_profile"
