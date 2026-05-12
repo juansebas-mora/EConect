@@ -5,5 +5,7 @@ data class RecyclingCenter(
     val name: String,
     val address: String,
     val location: LatLng,
-    val phone: String
+    val phone: String,
+    val ownerUid: String = "",
+    val acceptedMaterials: List<MaterialPrice> = emptyList()
 )

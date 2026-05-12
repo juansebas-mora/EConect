@@ -16,10 +16,16 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,11 +56,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.econect.app.domain.model.MaterialPrice
+import com.econect.app.domain.model.MaterialType
+import com.econect.app.domain.model.MaterialUnit
 import com.econect.app.domain.model.UserType
 
 private val USER_TYPE_OPTIONS = listOf(
     UserType.CITIZEN to "Ciudadano",
-    UserType.RECYCLER to "Reciclador"
+    UserType.RECYCLER to "Reciclador",
+    UserType.RECYCLING_CENTER to "Centro de reciclaje"
 )
 
 @Composable
@@ -105,6 +115,8 @@ private fun RegisterContent(
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var selectedUserType by rememberSaveable { mutableStateOf(UserType.CITIZEN) }
+    var centerName by rememberSaveable { mutableStateOf("") }
+    var materialPrices by rememberSaveable { mutableStateOf(emptyList<MaterialPrice>()) }
     var emailTouched by rememberSaveable { mutableStateOf(false) }
 
     val emailFocusRequester = remember { FocusRequester() }
@@ -113,7 +125,8 @@ private fun RegisterContent(
 
     val emailError = if (emailTouched && !email.isValidEmail()) "Ingresa un correo válido" else null
     val formValid = name.isNotBlank() && email.isValidEmail() &&
-                    phone.isNotBlank() && password.length >= 6
+                    phone.isNotBlank() && password.length >= 6 &&
+                    (selectedUserType != UserType.RECYCLING_CENTER || centerName.isNotBlank())
 
     Column(
         modifier = modifier
@@ -232,11 +245,11 @@ private fun RegisterContent(
 
         Spacer(Modifier.height(8.dp))
 
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             USER_TYPE_OPTIONS.forEach { (type, label) ->
                 Row(
@@ -260,6 +273,25 @@ private fun RegisterContent(
                     )
                 }
             }
+        }
+
+        if (selectedUserType == UserType.RECYCLING_CENTER) {
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = centerName,
+                onValueChange = { centerName = it },
+                label = { Text("Nombre del centro") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            MaterialPriceSection(
+                materialPrices = materialPrices,
+                onMaterialPricesChange = { materialPrices = it }
+            )
         }
 
         Spacer(Modifier.height(28.dp))
@@ -286,6 +318,132 @@ private fun RegisterContent(
 
         TextButton(onClick = onNavigateToLogin) {
             Text("¿Ya tienes cuenta? Inicia sesión")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MaterialPriceSection(
+    materialPrices: List<MaterialPrice>,
+    onMaterialPricesChange: (List<MaterialPrice>) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Precios de materiales",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        materialPrices.forEachIndexed { index, price ->
+            MaterialPriceItem(
+                materialPrice = price,
+                onMaterialPriceChange = { newPrice ->
+                    val newList = materialPrices.toMutableList()
+                    newList[index] = newPrice
+                    onMaterialPricesChange(newList)
+                },
+                onRemove = {
+                    val newList = materialPrices.toMutableList()
+                    newList.removeAt(index)
+                    onMaterialPricesChange(newList)
+                }
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
+        Button(
+            onClick = {
+                val newList = materialPrices.toMutableList()
+                newList.add(MaterialPrice(MaterialType.PAPER, 0.0, MaterialUnit.KG))
+                onMaterialPricesChange(newList)
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Agregar")
+            Spacer(Modifier.size(8.dp))
+            Text("Agregar material")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MaterialPriceItem(
+    materialPrice: MaterialPrice,
+    onMaterialPriceChange: (MaterialPrice) -> Unit,
+    onRemove: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        var expanded by remember { mutableStateOf(false) }
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = Modifier.weight(1f)
+        ) {
+            OutlinedTextField(
+                value = materialPrice.materialType.name,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Material") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                MaterialType.values().forEach { type ->
+                    DropdownMenuItem(
+                        text = { Text(type.name) },
+                        onClick = {
+                            onMaterialPriceChange(materialPrice.copy(materialType = type))
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = materialPrice.pricePerUnit.toString(),
+            onValueChange = { newValue ->
+                val price = newValue.toDoubleOrNull() ?: 0.0
+                onMaterialPriceChange(materialPrice.copy(pricePerUnit = price))
+            },
+            label = { Text("Precio") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.weight(1f)
+        )
+
+        Column {
+            listOf(MaterialUnit.KG, MaterialUnit.GR).forEach { unit ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.selectable(
+                        selected = materialPrice.unit == unit,
+                        onClick = { onMaterialPriceChange(materialPrice.copy(unit = unit)) },
+                        role = Role.RadioButton
+                    )
+                ) {
+                    RadioButton(
+                        selected = materialPrice.unit == unit,
+                        onClick = null
+                    )
+                    Text(unit.name, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Filled.Delete, contentDescription = "Eliminar")
         }
     }
 }

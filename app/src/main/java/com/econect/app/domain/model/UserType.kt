@@ -1,3 +1,3 @@
 package com.econect.app.domain.model
 
-enum class UserType { CITIZEN, RECYCLER }
+enum class UserType { CITIZEN, RECYCLER, RECYCLING_CENTER }
