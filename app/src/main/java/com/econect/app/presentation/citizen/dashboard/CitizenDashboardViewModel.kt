@@ -10,6 +10,7 @@ import com.econect.app.domain.model.Schedule
 import com.econect.app.domain.repository.MaterialRepository
 import com.econect.app.domain.usecase.GetCitizenMaterialsUseCase
 import com.econect.app.domain.usecase.GetUserProfileUseCase
+import com.econect.app.domain.usecase.LogoutUseCase  // ← NUEVO
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,13 +29,10 @@ data class CitizenDashboardUiState(
     val userName: String = "",
     val totalAvailable: Int = 0,
     val collectedThisMonth: Int = 0,
-    // TODO: poblar desde TransactionRepository cuando esté disponible
     val estimatedEarningsThisMonth: Double = 0.0,
     val upcomingSchedules: List<Schedule> = emptyList(),
     val recentMaterials: List<RecyclableMaterial> = emptyList(),
-    // TODO: poblar desde ChatRepository cuando esté disponible
     val unreadMessages: Int = 0,
-    // TODO: poblar desde RouteRepository cuando esté disponible
     val activeRouteId: String? = null
 )
 
@@ -43,7 +41,8 @@ class CitizenDashboardViewModel @Inject constructor(
     private val userDataStore: UserDataStore,
     private val getUserProfileUseCase: GetUserProfileUseCase,
     private val getCitizenMaterialsUseCase: GetCitizenMaterialsUseCase,
-    private val materialRepository: MaterialRepository
+    private val materialRepository: MaterialRepository,
+    private val logoutUseCase: LogoutUseCase  // ← NUEVO
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CitizenDashboardUiState())
@@ -60,7 +59,6 @@ class CitizenDashboardViewModel @Inject constructor(
                 return@launch
             }
 
-            // Cargar nombre y horarios desde el perfil del usuario
             launch {
                 when (val result = getUserProfileUseCase(uid)) {
                     is Result.Success -> _uiState.update { state ->
@@ -74,7 +72,6 @@ class CitizenDashboardViewModel @Inject constructor(
                 }
             }
 
-            // Observar materiales desde caché Room (offline-first)
             launch {
                 getCitizenMaterialsUseCase(uid).collect { materials ->
                     _uiState.update { state ->
@@ -90,10 +87,18 @@ class CitizenDashboardViewModel @Inject constructor(
                 }
             }
 
-            // Sincronizar con Firestore en background
             _uiState.update { it.copy(isSyncing = true) }
             materialRepository.syncCitizenMaterials(uid)
             _uiState.update { it.copy(isSyncing = false) }
+        }
+    }
+
+    // ← NUEVO: función de logout
+    fun logout(onDone: () -> Unit) {
+        viewModelScope.launch {
+            logoutUseCase()
+            userDataStore.clearActiveUser()
+            onDone()
         }
     }
 

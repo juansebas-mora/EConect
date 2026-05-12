@@ -20,6 +20,5 @@ object NavRoutes {
     const val ROUTE_DETAIL = "route_detail/{routeId}"
     fun routeDetail(routeId: String) = "route_detail/$routeId"
 
-    // Centro de reciclaje
-    const val CENTER_PRICE_CONFIG = "center_price_config"
+    const val AVAILABLE_MATERIALS = "available_materials"
 }

@@ -27,4 +27,9 @@ interface MaterialRepository {
 
     /** Descarga materiales del ciudadano desde Firestore y actualiza Room. */
     suspend fun syncCitizenMaterials(citizenId: String): Result<Unit>
+    suspend fun getAvailableMaterials(): Result<List<RecyclableMaterial>>
+
+    suspend fun assignMaterial(materialId: String, recyclerId: String): Result<Unit>
+
+    suspend fun getAssignedMaterials(recyclerId: String): Result<List<RecyclableMaterial>>
 }
